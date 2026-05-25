@@ -1,0 +1,15 @@
+# API keys — never commit
+.env
+
+# Generated audio and episode data
+output/
+
+# Python
+__pycache__/
+*.py.save
+*.pyc
+*.pyo
+*.log
+
+# macOS
+.DS_Store
