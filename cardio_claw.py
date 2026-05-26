@@ -14,13 +14,17 @@ from datetime import datetime, timedelta
 
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
 except ImportError:
     pass
 
 Entrez.email = "zoloth1@verizon.net"
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+
+ALERT_EMAIL_TO = os.environ.get("ALERT_EMAIL_TO", "")
+ALERT_EMAIL_FROM = os.environ.get("ALERT_EMAIL_FROM", "")
+ALERT_EMAIL_PASSWORD = os.environ.get("ALERT_EMAIL_PASSWORD", "")
 
 MAX_NUCLEAR_ARTICLES = 4
 MAX_GENERAL_ARTICLES = 3
@@ -30,6 +34,7 @@ MAX_ABSTRACT_CHARS = 12000
 
 OUTPUT_DIR = os.path.expanduser("~/CardioClaw/output")
 EPISODES_FILE = os.path.join(OUTPUT_DIR, "episodes.json")
+BACKUP_DIR = os.path.expanduser("~/CardioClaw/output_prev")
 
 CLAUDE_MODEL = "claude-sonnet-4-6"
 OPENAI_TTS_MODEL = "gpt-4o-mini-tts"
@@ -293,6 +298,10 @@ def generate_audio(episodes, today_str):
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     episode_meta = []
     client = OpenAI(api_key=OPENAI_API_KEY)
+    date_tag = datetime.now().strftime("%Y%m%d")
+
+    # Back up current episodes before overwriting
+    backup_current_episodes()
 
     # Clear old episode files
     for f in os.listdir(OUTPUT_DIR):
@@ -302,7 +311,7 @@ def generate_audio(episodes, today_str):
         os.remove(EPISODES_FILE)
 
     for i, ep in enumerate(episodes):
-        filename = f"episode_{i:02d}_{ep['type']}.mp3"
+        filename = f"episode_{i:02d}_{ep['type']}_{date_tag}.mp3"
         filepath = os.path.join(OUTPUT_DIR, filename)
 
         print(f"DEBUG: Generating audio — {ep['title']}...")
@@ -363,6 +372,66 @@ def generate_error_episode(message, today_str):
         print(f"Error episode generation failed: {e}")
 
 
+def send_alert_email(subject, body):
+    """Send an email alert via Gmail SMTP. Silently skips if credentials not set."""
+    if not all([ALERT_EMAIL_TO, ALERT_EMAIL_FROM, ALERT_EMAIL_PASSWORD]):
+        print("Email alert skipped — credentials not configured in .env")
+        return
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        msg = MIMEText(body)
+        msg["Subject"] = f"[Cardio Claw] {subject}"
+        msg["From"] = ALERT_EMAIL_FROM
+        msg["To"] = ALERT_EMAIL_TO
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(ALERT_EMAIL_FROM, ALERT_EMAIL_PASSWORD)
+            server.sendmail(ALERT_EMAIL_FROM, ALERT_EMAIL_TO, msg.as_string())
+        print(f"Alert email sent: {subject}")
+    except Exception as e:
+        print(f"Alert email failed (non-fatal): {e}")
+
+
+def backup_current_episodes():
+    """Copy current episodes to backup dir before overwriting."""
+    if not os.path.exists(EPISODES_FILE):
+        return
+    try:
+        import shutil
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+        for f in os.listdir(BACKUP_DIR):
+            os.remove(os.path.join(BACKUP_DIR, f))
+        for f in os.listdir(OUTPUT_DIR):
+            if f.startswith("episode_") and f.endswith(".mp3"):
+                shutil.copy2(os.path.join(OUTPUT_DIR, f), os.path.join(BACKUP_DIR, f))
+        shutil.copy2(EPISODES_FILE, os.path.join(BACKUP_DIR, "episodes.json"))
+        print("DEBUG: Current episodes backed up to output_prev/")
+    except Exception as e:
+        print(f"DEBUG: Backup failed (non-fatal): {e}")
+
+
+def restore_backup_episodes():
+    """Restore previous week's episodes if the current run failed."""
+    backup_json = os.path.join(BACKUP_DIR, "episodes.json")
+    if not os.path.exists(backup_json):
+        print("DEBUG: No backup episodes available to restore.")
+        return False
+    try:
+        import shutil
+        for f in os.listdir(OUTPUT_DIR):
+            if f.startswith("episode_") and f.endswith(".mp3"):
+                os.remove(os.path.join(OUTPUT_DIR, f))
+        if os.path.exists(EPISODES_FILE):
+            os.remove(EPISODES_FILE)
+        for f in os.listdir(BACKUP_DIR):
+            shutil.copy2(os.path.join(BACKUP_DIR, f), os.path.join(OUTPUT_DIR, f))
+        print("DEBUG: Previous episodes restored from output_prev/")
+        return True
+    except Exception as e:
+        print(f"DEBUG: Restore failed: {e}")
+        return False
+
+
 def main():
     today = datetime.now()
     is_monday = today.weekday() == 0
@@ -374,6 +443,16 @@ def main():
     print(f"  CARDIOLOGY CLAW V3.0 — OpenAI TTS — {briefing_type.upper()}")
     print(f"  {today.strftime('%A, %B %d %Y at %I:%M %p')}")
     print("=" * 60)
+
+    if not ANTHROPIC_API_KEY or not OPENAI_API_KEY:
+        print("ERROR: API keys not configured. Check .env file.")
+        send_alert_email(
+            "FAILED — API keys missing",
+            f"Cardio Claw failed on {day_name}, {today_str}.\n\n"
+            f"API keys are not set. Check the .env file on the Oracle server "
+            f"at ~/CardioClaw/.env and ensure ANTHROPIC_API_KEY and OPENAI_API_KEY are present."
+        )
+        return
 
     yesterday_str = (today - timedelta(days=1)).strftime("%Y/%m/%d")
     today_date_str = today.strftime("%Y/%m/%d")
@@ -469,6 +548,14 @@ def main():
         episodes = build_episodes(findings, briefing_type, today_str, day_name)
         generate_audio(episodes, today_str)
 
+        finding_count = len(episodes) - 2  # exclude intro and outro
+        send_alert_email(
+            f"OK — {finding_count} findings — {today_str}",
+            f"Cardio Claw ran successfully on {day_name}, {today_str}.\n\n"
+            f"{finding_count} findings generated.\n\n"
+            f"Feed: http://157.151.155.75:5000/feed.xml"
+        )
+
         print("\n--- EPISODE LIST ---")
         for ep in episodes:
             print(f"  {ep['title']}")
@@ -481,15 +568,36 @@ def main():
         import traceback
         print(f"\nSystem Error: {str(e)}")
         traceback.print_exc()
-        msg = (
-            f"Good morning. Today is {day_name}, {today_str}. "
-            f"The cardiology briefing system encountered an error: {str(e)}. "
-            f"Please check the system logs."
+
+        # Restore previous week's episodes so the feed isn't empty
+        restored = restore_backup_episodes()
+        restore_note = (
+            "Previous week's episodes have been restored to the feed."
+            if restored else
+            "No backup episodes were available."
         )
-        try:
-            generate_error_episode(msg, today_str)
-        except Exception:
-            pass
+
+        # Alert Steve
+        send_alert_email(
+            f"FAILED — {today_str}",
+            f"Cardio Claw failed on {day_name}, {today_str}.\n\n"
+            f"Error: {str(e)}\n\n"
+            f"{restore_note}\n\n"
+            f"Check log: ~/CardioClaw/cardio_claw.log"
+        )
+
+        # Only generate spoken error episode if no backup to fall back on
+        if not restored:
+            msg = (
+                f"Good morning. Today is {day_name}, {today_str}. "
+                f"The cardiology briefing system encountered an error "
+                f"and was unable to generate this week's findings. "
+                f"Please check the system logs."
+            )
+            try:
+                generate_error_episode(msg, today_str)
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
