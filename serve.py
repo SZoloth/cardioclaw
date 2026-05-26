@@ -10,6 +10,7 @@ EPISODES_FILE = os.path.join(OUTPUT_DIR, "episodes.json")
 
 SERVER_IP = "157.151.155.75"
 PORT = 5000
+COVER_IMAGE = os.path.expanduser("~/CardioClaw/cover.png")
 
 
 def load_episodes():
@@ -23,6 +24,13 @@ def load_episodes():
 def index():
     episodes = load_episodes()
     return "Cardiology Claw V3.0 — " + str(len(episodes)) + " episode(s) available."
+
+
+@app.route("/cover.png")
+def cover():
+    if os.path.exists(COVER_IMAGE):
+        return send_file(COVER_IMAGE, mimetype="image/png")
+    return "Cover not found", 404
 
 
 @app.route("/audio/<filename>")
@@ -69,6 +77,8 @@ def feed():
     <language>en-us</language>
     <lastBuildDate>""" + build_date + """</lastBuildDate>
     <itunes:author>Cardiology Claw</itunes:author>
+    <itunes:image href="http://""" + SERVER_IP + ":" + str(PORT) + """/cover.png"/>
+    <image><url>http://""" + SERVER_IP + ":" + str(PORT) + """/cover.png</url><title>Cardiology Report</title><link>http://""" + SERVER_IP + ":" + str(PORT) + """/</link></image>
     <itunes:category text="Health"/>
     <itunes:explicit>false</itunes:explicit>
     <itunes:type>episodic</itunes:type>
