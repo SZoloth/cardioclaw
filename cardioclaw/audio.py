@@ -26,10 +26,14 @@ def build_overview_script(
         for finding in findings
         if by_id[finding.candidate_id].topic.value == "nuclear_cardiology"
     )
+    paper_count = len(findings)
+    paper_phrase = (
+        "1 paper episode" if paper_count == 1 else f"{paper_count} paper episodes"
+    )
     sentences = [
         f"Good morning. This is your {briefing_type} Cardiology Report for {period_label}.",
         (
-            f"There are {len(findings)} paper episodes in this briefing, "
+            f"There are {paper_phrase} in this briefing, "
             f"including {nuclear_count} focused on nuclear cardiology."
         ),
         (
@@ -39,7 +43,7 @@ def build_overview_script(
         ),
     ]
     for index, finding in enumerate(findings, start=1):
-        sentences.append(f"Paper {index} of {len(findings)}. {finding.headline}")
+        sentences.append(f"Paper {index} of {paper_count}. {finding.headline}")
     sentences.append(
         "That concludes the overview. The full paper briefings follow as separate episodes."
     )
@@ -73,7 +77,10 @@ def build_paper_script(
             f"Limitations. {finding.limitations}",
             scope,
             f"Source. {candidate.citation_label}.",
-            "Say next episode to continue to the next paper, or previous episode to hear the prior paper.",
+            (
+                "Say next episode to continue to the next paper, or previous episode "
+                "to hear the prior paper."
+            ),
         ]
     )
 
