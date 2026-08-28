@@ -6,6 +6,12 @@ from pydantic import ValidationError
 from cardioclaw.config import Settings
 
 
+def test_development_uses_stable_tts_model_alias() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.openai_tts_model == "gpt-4o-mini-tts"
+
+
 def test_production_rejects_insecure_feed_configuration() -> None:
     with pytest.raises(ValidationError, match="HTTPS"):
         Settings(
