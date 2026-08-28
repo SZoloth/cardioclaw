@@ -75,6 +75,7 @@ def build_feed(
     ET.SubElement(channel, "link").text = feed_url(settings)
     ET.SubElement(channel, "description").text = settings.show_description
     ET.SubElement(channel, "language").text = "en-us"
+    ET.SubElement(channel, "generator").text = "Cardiology Claw 5"
     ET.SubElement(channel, "lastBuildDate").text = format_datetime(
         manifest.generated_at.astimezone(UTC)
     )
@@ -85,6 +86,8 @@ def build_feed(
     )
     ET.SubElement(channel, _tag(ITUNES, "author")).text = settings.show_author
     ET.SubElement(channel, _tag(ITUNES, "explicit")).text = "false"
+    # Apple recommends blocking private feeds from public-directory processing.
+    ET.SubElement(channel, _tag(ITUNES, "block")).text = "Yes"
     # This is a recurring news briefing, not one narrative series. Distinct publication
     # times keep each release ordered overview-first, followed by its paper episodes.
     ET.SubElement(channel, _tag(ITUNES, "type")).text = "episodic"
@@ -143,10 +146,17 @@ def _append_item(
     ET.SubElement(item, _tag(ITUNES, "explicit")).text = "false"
     ET.SubElement(item, _tag(ITUNES, "episode")).text = str(episode.track_number)
     ET.SubElement(item, _tag(ITUNES, "episodeType")).text = "full"
-    ET.SubElement(item, _tag(ITUNES, "duration")).text = _duration(episode.duration_seconds)
-    ET.SubElement(item, _tag(CONTENT, "encoded")).text = description
-    ET.SubElement(
-        item,
-        _tag(PODCAST, "transcript"),
-        {"url": transcript, "type": "text/html", "rel": "captions"},
+    ET.SubElement(item, _tag(ITUNES, "duration")).text = _duration(
+        episode.duration_seconds
     )
+    ET.SubElement(item, _tag(CONTENT, "encoded")).text = description
+
+    # The Podcast Namespace supports HTML transcripts, but subscriber clients need a
+    # publicly retrievable HTTPS URL. The local HTTP development feed retains the link
+    # in its description without advertising an unusable namespace artifact.
+    if settings.public_base_url.startswith("https://"):
+        ET.SubElement(
+            item,
+            _tag(PODCAST, "transcript"),
+            {"url": transcript, "type": "text/html", "language": "en"},
+        )
