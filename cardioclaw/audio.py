@@ -116,7 +116,7 @@ class OpenAITTSRenderer:
             response.stream_to_file(destination)
 
         audio = MP3(destination)
-        duration = max(1, int(round(audio.info.length)))
+        duration = max(1, round(audio.info.length))
         size = destination.stat().st_size
         self._tag(destination, title=title, track_number=track_number)
         return size, duration

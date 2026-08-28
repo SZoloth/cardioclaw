@@ -107,7 +107,7 @@ class Settings(BaseSettings):
         return self.alert_email_password.get_secret_value() if self.alert_email_password else None
 
     @model_validator(mode="after")
-    def validate_safety(self) -> "Settings":
+    def validate_safety(self) -> Settings:
         base = self.public_base_url.rstrip("/")
         self.public_base_url = base
 

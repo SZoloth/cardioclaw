@@ -42,4 +42,4 @@ jobs:
       - name: Build
         run: docker build -t cardioclaw-ci .
       - name: Validate Compose
-        run: docker compose config --quiet
+        run: cp .env.example .env && docker compose config --quiet
