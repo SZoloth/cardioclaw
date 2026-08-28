@@ -58,6 +58,10 @@ quote-style = "double"
 [tool.coverage.run]
 branch = true
 source = ["cardioclaw"]
+omit = [
+  "cardioclaw/__main__.py",
+  "cardioclaw/cli.py"
+]
 
 [tool.coverage.report]
 show_missing = true
