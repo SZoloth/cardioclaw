@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-4-6"
 
     openai_api_key: SecretStr | None = None
-    openai_tts_model: str = "gpt-4o-mini-tts-2025-12-15"
+    openai_tts_model: str = "gpt-4o-mini-tts"
     openai_voice: str = "nova"
     openai_tts_instructions: str = (
         "Speak as a calm, precise medical colleague briefing a retired cardiologist. "
