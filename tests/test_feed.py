@@ -76,3 +76,7 @@ def test_feed_has_stable_required_episode_fields() -> None:
     )
     assert enclosure.attrib["length"] == "1234"
     assert "secret-token" in root.findtext("./channel/link", default="")
+    assert (
+        root.findtext("./channel/{http://www.itunes.com/dtds/podcast-1.0.dtd}type")
+        == "episodic"
+    )

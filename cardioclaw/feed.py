@@ -62,7 +62,12 @@ def cover_url(settings: Settings) -> str:
     )
 
 
-def build_feed(manifest: ReleaseManifest, settings: Settings) -> str:
+def build_feed(
+    manifest: ReleaseManifest,
+    settings: Settings,
+    *,
+    history: tuple[ReleaseManifest, ...] = (),
+) -> str:
     rss = ET.Element("rss", {"version": "2.0"})
     channel = ET.SubElement(rss, "channel")
 
@@ -80,7 +85,9 @@ def build_feed(manifest: ReleaseManifest, settings: Settings) -> str:
     )
     ET.SubElement(channel, _tag(ITUNES, "author")).text = settings.show_author
     ET.SubElement(channel, _tag(ITUNES, "explicit")).text = "false"
-    ET.SubElement(channel, _tag(ITUNES, "type")).text = "serial"
+    # This is a recurring news briefing, not one narrative series. Distinct publication
+    # times keep each release ordered overview-first, followed by its paper episodes.
+    ET.SubElement(channel, _tag(ITUNES, "type")).text = "episodic"
     ET.SubElement(channel, _tag(ITUNES, "image"), {"href": cover_url(settings)})
     ET.SubElement(channel, _tag(ITUNES, "category"), {"text": "Health & Fitness"})
 
@@ -89,15 +96,27 @@ def build_feed(manifest: ReleaseManifest, settings: Settings) -> str:
     ET.SubElement(image, "title").text = settings.show_title
     ET.SubElement(image, "link").text = feed_url(settings)
 
-    for episode in manifest.episodes:
-        _append_item(channel, episode, release_id=manifest.release_id, settings=settings)
+    for release in (manifest, *history):
+        for episode in release.episodes:
+            _append_item(
+                channel,
+                episode,
+                release_id=release.release_id,
+                settings=settings,
+            )
 
     ET.indent(rss, space="  ")
     xml = ET.tostring(rss, encoding="unicode", xml_declaration=False)
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + xml + "\n"
 
 
-def _append_item(channel: ET.Element, episode: Episode, *, release_id: str, settings: Settings) -> None:
+def _append_item(
+    channel: ET.Element,
+    episode: Episode,
+    *,
+    release_id: str,
+    settings: Settings,
+) -> None:
     item = ET.SubElement(channel, "item")
     audio = media_url(settings, release_id=release_id, filename=episode.audio_filename)
     transcript = transcript_url(
@@ -110,7 +129,9 @@ def _append_item(channel: ET.Element, episode: Episode, *, release_id: str, sett
     ET.SubElement(item, "title").text = episode.title
     ET.SubElement(item, "description").text = description
     ET.SubElement(item, "link").text = transcript
-    ET.SubElement(item, "pubDate").text = format_datetime(episode.published_at.astimezone(UTC))
+    ET.SubElement(item, "pubDate").text = format_datetime(
+        episode.published_at.astimezone(UTC)
+    )
     ET.SubElement(
         item,
         "enclosure",

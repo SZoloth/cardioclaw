@@ -83,11 +83,25 @@ class ReleasePublisher:
 </body>
 </html>
 """
-        atomic_write_text(release_dir / "transcripts" / episode.transcript_filename, document)
+        atomic_write_text(
+            release_dir / "transcripts" / episode.transcript_filename,
+            document,
+        )
 
     def finalize(self, manifest: ReleaseManifest, release_dir: Path) -> None:
-        atomic_write_text(release_dir / "feed.xml", build_feed(manifest, self.settings))
-        atomic_write_json(release_dir / "manifest.json", manifest.model_dump(mode="json"))
+        history = self._history(
+            excluding=manifest.release_id,
+            limit=max(0, self.settings.release_retention - 1),
+        )
+        atomic_write_text(
+            release_dir / "feed.xml",
+            build_feed(manifest, self.settings, history=history),
+        )
+        atomic_write_json(
+            release_dir / "manifest.json",
+            manifest.model_dump(mode="json"),
+        )
+        # The pointer moves only after all audio, transcripts, feed, and manifest exist.
         atomic_write_json(
             self.settings.current_pointer,
             {"release_id": manifest.release_id, "generated_at": manifest.generated_at.isoformat()},
@@ -107,6 +121,29 @@ class ReleasePublisher:
             return None
         destination = self.release_dir(release_id)
         return destination if destination.is_dir() else None
+
+    def _history(
+        self,
+        *,
+        excluding: str,
+        limit: int,
+    ) -> tuple[ReleaseManifest, ...]:
+        if limit <= 0:
+            return ()
+        manifests: list[ReleaseManifest] = []
+        for path in self.settings.releases_dir.iterdir():
+            if not path.is_dir() or path.name == excluding:
+                continue
+            try:
+                manifests.append(
+                    ReleaseManifest.model_validate_json(
+                        (path / "manifest.json").read_text("utf-8")
+                    )
+                )
+            except (OSError, ValueError):
+                continue
+        manifests.sort(key=lambda item: item.generated_at, reverse=True)
+        return tuple(manifests[:limit])
 
     def _prune(self, current_release_id: str) -> None:
         releases = sorted(
