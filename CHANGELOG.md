@@ -9,7 +9,11 @@
 - Add source-bounded structured summaries and numeric-token validation
 - Add natural TTS per episode, stable GUIDs, and content-addressed media filenames
 - Add accessible HTML transcripts and source links
-- Add immutable releases, atomic publication, retained feed history, and private tokenized URLs
+- Add immutable releases, off-feed staging, atomic promotion, and retained feed history
+- Mark the private RSS feed with Apple’s directory-blocking metadata
+- Publish Podcast Namespace transcript metadata only for HTTPS deployments
+- Define weekly and daily publication-date windows explicitly
+- Use the stable `gpt-4o-mini-tts` model alias and correct spoken singular/plural grammar
 - Add tests, CI, container, systemd, Caddy, security, deployment, and accessibility documentation
 
 V5 remains an evaluation branch and does not replace the live V4 Oracle feed.
