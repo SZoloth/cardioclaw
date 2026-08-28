@@ -1,7 +1,7 @@
 import os
 import json
 from flask import Flask, send_file, Response
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
@@ -53,6 +53,7 @@ def feed():
     date_str = now.strftime("%B %d %Y")
 
     items = ""
+    total_eps = len(episodes)
     for i, ep in enumerate(episodes):
         audio_url = "http://" + SERVER_IP + ":" + str(PORT) + "/audio/" + ep["filename"]
         guid = SERVER_IP + "-" + ep["filename"] + "-" + ep.get("date", date_str).replace(" ", "")
@@ -62,7 +63,7 @@ def feed():
     <item>
       <title>""" + ep["title"] + """</title>
       <description>""" + description + """</description>
-      <pubDate>""" + build_date + """</pubDate>
+      <pubDate>""" + (now + timedelta(minutes=(total_eps - i))).strftime("%a, %d %b %Y %H:%M:%S +0000") + """</pubDate>
       <enclosure url=\"""" + audio_url + """\" length=\"""" + str(ep["size"]) + """\" type="audio/mpeg"/>
       <guid isPermaLink="false">""" + guid + """</guid>
       <itunes:episode>""" + str(i + 1) + """</itunes:episode>
@@ -81,7 +82,7 @@ def feed():
     <image><url>http://""" + SERVER_IP + ":" + str(PORT) + """/cover.png</url><title>Cardiology Report</title><link>http://""" + SERVER_IP + ":" + str(PORT) + """/</link></image>
     <itunes:category text="Health"/>
     <itunes:explicit>false</itunes:explicit>
-    <itunes:type>episodic</itunes:type>
+    <itunes:type>serial</itunes:type>
     """ + items + """
   </channel>
 </rss>"""

@@ -3,6 +3,8 @@
 
 # Generated audio and episode data
 output/
+output_prev/*.mp3
+tmp_segments/
 
 # Python
 __pycache__/
