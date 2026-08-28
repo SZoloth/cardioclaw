@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from Bio import Entrez
 
 from cardioclaw.config import Settings
-from cardioclaw.models import EvidenceType, SourceKind, SourceScope, Topic
+from cardioclaw.models import Candidate, EvidenceType, SourceKind, SourceScope, Topic
 from cardioclaw.sources import (
     PubMedSource,
     RSSSource,
@@ -64,8 +64,8 @@ def test_rss_source_filters_society_news_and_classifies_nuclear(monkeypatch) -> 
         "published_parsed": time.gmtime(0),
     }
     irrelevant = {
-        "title": "Unrelated imaging business story",
-        "summary": "No society, guideline, regulatory, or nuclear cardiology signal.",
+        "title": "Quarterly imaging company earnings report",
+        "summary": "Revenue and staffing update for a commercial vendor.",
         "link": "https://example.test/irrelevant",
     }
     monkeypatch.setattr(
@@ -150,11 +150,7 @@ def test_pubmed_search_and_full_text_enrichment(monkeypatch) -> None:
     )
     assert result[0] == ["123"]
 
-    base = PubMedSource(Settings(_env_file=None, ncbi_email="operator@example.test"))
-    candidate = PubMedSource(Settings(_env_file=None, ncbi_email="operator@example.test"))
-    del candidate
-    from cardioclaw.models import Candidate
-
+    source = PubMedSource(Settings(_env_file=None, ncbi_email="operator@example.test"))
     item = Candidate(
         candidate_id="pmid-123",
         title="Cardiac PET study",
@@ -167,10 +163,10 @@ def test_pubmed_search_and_full_text_enrichment(monkeypatch) -> None:
         source_scope=SourceScope.ABSTRACT_ONLY,
         pmid="123",
     )
-    monkeypatch.setattr(base, "_find_pmcid", lambda pmid: "PMC456")
-    monkeypatch.setattr(base, "_fetch_pmc_text", lambda pmcid: "Full methods and results.")
+    monkeypatch.setattr(source, "_find_pmcid", lambda pmid: "PMC456")
+    monkeypatch.setattr(source, "_fetch_pmc_text", lambda pmcid: "Full methods and results.")
 
-    enriched = base.enrich_full_text(item)
+    enriched = source.enrich_full_text(item)
     assert enriched.pmcid == "PMC456"
     assert enriched.source_scope == SourceScope.FULL_TEXT
     assert enriched.full_text == "Full methods and results."
