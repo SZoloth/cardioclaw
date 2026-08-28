@@ -14,8 +14,13 @@ def _summary_schema(max_findings: int) -> dict:
         "type": "object",
         "additionalProperties": False,
         "required": [
-            "candidate_id", "headline", "why_it_matters", "spoken_summary",
-            "limitations", "source_scope", "pronunciation_notes",
+            "candidate_id",
+            "headline",
+            "why_it_matters",
+            "spoken_summary",
+            "limitations",
+            "source_scope",
+            "pronunciation_notes",
         ],
         "properties": {
             "candidate_id": {"type": "string"},
@@ -23,8 +28,15 @@ def _summary_schema(max_findings: int) -> dict:
             "why_it_matters": {"type": "string", "minLength": 10, "maxLength": 600},
             "spoken_summary": {"type": "string", "minLength": 80, "maxLength": 4500},
             "limitations": {"type": "string", "minLength": 5, "maxLength": 1000},
-            "source_scope": {"type": "string", "enum": [scope.value for scope in SourceScope]},
-            "pronunciation_notes": {"type": "array", "items": {"type": "string"}, "maxItems": 20},
+            "source_scope": {
+                "type": "string",
+                "enum": [scope.value for scope in SourceScope],
+            },
+            "pronunciation_notes": {
+                "type": "array",
+                "items": {"type": "string"},
+                "maxItems": 20,
+            },
         },
     }
     return {
@@ -32,7 +44,12 @@ def _summary_schema(max_findings: int) -> dict:
         "additionalProperties": False,
         "required": ["findings"],
         "properties": {
-            "findings": {"type": "array", "minItems": 1, "maxItems": max_findings, "items": finding}
+            "findings": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": max_findings,
+                "items": finding,
+            }
         },
     }
 
@@ -133,7 +150,9 @@ class ClaudeSummarizer:
             "interpretation. Read numbers naturally.\n"
             "- limitations: the most important evidence and access limitations.\n"
             "- pronunciation_notes: only genuinely difficult names or terms, written as "
-            "'term = phonetic guidance'.\n\n"
+            "'term = phonetic guidance'.\n"
+            "- Write every scientific numeric value as digits, not number words, so the "
+            "application can validate it against the source before speech generation.\n\n"
             "Never call an association causal. Never imply full-text review when only an "
             "abstract or RSS snippet was supplied. If the source lacks a requested detail, "
             "say it was not available rather than filling it in.\n\n"
