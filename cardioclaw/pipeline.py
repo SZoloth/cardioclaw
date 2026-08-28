@@ -16,7 +16,14 @@ from cardioclaw.audio import (
     make_episode,
 )
 from cardioclaw.config import Settings
-from cardioclaw.models import Candidate, Episode, EpisodeKind, ReleaseManifest, SummaryFinding, Topic
+from cardioclaw.models import (
+    Candidate,
+    Episode,
+    EpisodeKind,
+    ReleaseManifest,
+    SummaryFinding,
+    Topic,
+)
 from cardioclaw.publisher import ReleasePublisher
 from cardioclaw.selection import select_candidates
 from cardioclaw.sources import PubMedSource, discover_candidates
@@ -65,9 +72,26 @@ def resolve_period(
     briefing_type: str = "weekly",
     lookback_days: int | None = None,
 ) -> Period:
-    days = lookback_days if lookback_days is not None else (7 if briefing_type == "weekly" else 1)
-    end = now.date()
-    start = end - timedelta(days=max(1, days))
+    """Resolve inclusive publication-date boundaries.
+
+    Weekly defaults to seven calendar dates ending today. Daily defaults to the
+    previous calendar date, avoiding an ambiguous two-day "daily" label.
+    """
+
+    if briefing_type not in {"weekly", "daily"}:
+        raise ValueError(f"Unsupported briefing type: {briefing_type}")
+
+    today = now.astimezone(UTC).date()
+    if lookback_days is not None:
+        days = max(1, lookback_days)
+        end = today
+        start = end - timedelta(days=days - 1)
+    elif briefing_type == "weekly":
+        end = today
+        start = end - timedelta(days=6)
+    else:
+        end = today - timedelta(days=1)
+        start = end
     return Period(briefing_type=briefing_type, start=start, end=end)
 
 
@@ -119,33 +143,43 @@ class CardiologyClawPipeline:
             raise RuntimeError(f"Expected {len(selected)} summaries; received {len(findings)}")
 
         release_id = self._release_id(period, selected, now)
-        release_dir = self.publisher.begin(release_id)
-        episodes = self._render_episodes(
-            self.renderer or OpenAITTSRenderer(self.settings),
-            release_dir=release_dir,
-            period=period,
-            candidates=selected,
-            findings=findings,
-            generated_at=now,
-        )
-        manifest = ReleaseManifest(
-            release_id=release_id,
-            generated_at=now,
-            period_start=period.start,
-            period_end=period.end,
-            briefing_type=period.briefing_type,
-            reviewed_count=len(discovered),
-            selected_count=len(selected),
-            nuclear_count=sum(1 for item in selected if item.topic == Topic.NUCLEAR_CARDIOLOGY),
-            episodes=tuple(episodes),
-            candidates=tuple(selected),
-        )
+        staging_dir = self.publisher.begin(release_id)
+        try:
+            episodes = self._render_episodes(
+                self.renderer or OpenAITTSRenderer(self.settings),
+                release_dir=staging_dir,
+                period=period,
+                candidates=selected,
+                findings=findings,
+                generated_at=now,
+            )
+            manifest = ReleaseManifest(
+                release_id=release_id,
+                generated_at=now,
+                period_start=period.start,
+                period_end=period.end,
+                briefing_type=period.briefing_type,
+                reviewed_count=len(discovered),
+                selected_count=len(selected),
+                nuclear_count=sum(
+                    1 for item in selected if item.topic == Topic.NUCLEAR_CARDIOLOGY
+                ),
+                episodes=tuple(episodes),
+                candidates=tuple(selected),
+            )
 
-        by_id = {candidate.candidate_id: candidate for candidate in selected}
-        for episode in episodes:
-            candidate = by_id.get(episode.source_candidate_id) if episode.source_candidate_id else None
-            self.publisher.write_transcript(release_dir, episode, candidate)
-        self.publisher.finalize(manifest, release_dir)
+            by_id = {candidate.candidate_id: candidate for candidate in selected}
+            for episode in episodes:
+                candidate = (
+                    by_id.get(episode.source_candidate_id)
+                    if episode.source_candidate_id
+                    else None
+                )
+                self.publisher.write_transcript(staging_dir, episode, candidate)
+            self.publisher.finalize(manifest, staging_dir)
+        except Exception:
+            self.publisher.discard(staging_dir)
+            raise
 
         send_alert(
             self.settings,
