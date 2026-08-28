@@ -14,13 +14,11 @@ from cardioclaw.models import (
     Topic,
 )
 
+ITUNES = "http://www.itunes.com/dtds/podcast-1.0.dtd"
+PODCAST = "https://podcastindex.org/namespace/1.0"
 
-def test_feed_has_stable_required_episode_fields() -> None:
-    settings = Settings(
-        _env_file=None,
-        public_base_url="https://audio.example.test",
-        feed_token="secret-token",
-    )
+
+def _manifest() -> ReleaseManifest:
     episode = Episode(
         episode_id="week:paper",
         guid="urn:cardioclaw:week:paper",
@@ -50,10 +48,10 @@ def test_feed_has_stable_required_episode_fields() -> None:
         source_scope=SourceScope.ABSTRACT_ONLY,
         pmid="123",
     )
-    manifest = ReleaseManifest(
+    return ReleaseManifest(
         release_id="release-1",
         generated_at=datetime(2026, 8, 28, tzinfo=UTC),
-        period_start=date(2026, 8, 21),
+        period_start=date(2026, 8, 22),
         period_end=date(2026, 8, 28),
         briefing_type="weekly",
         reviewed_count=10,
@@ -63,12 +61,20 @@ def test_feed_has_stable_required_episode_fields() -> None:
         candidates=(candidate,),
     )
 
-    xml = build_feed(manifest, settings)
+
+def test_private_https_feed_has_required_fields_and_transcript_metadata() -> None:
+    settings = Settings(
+        _env_file=None,
+        public_base_url="https://audio.example.test",
+        feed_token="secret-token",
+    )
+
+    xml = build_feed(_manifest(), settings)
     root = ElementTree.fromstring(xml)
     item = root.find("./channel/item")
 
     assert item is not None
-    assert item.findtext("guid") == episode.guid
+    assert item.findtext("guid") == "urn:cardioclaw:week:paper"
     enclosure = item.find("enclosure")
     assert enclosure is not None
     assert enclosure.attrib["url"].startswith(
@@ -76,7 +82,28 @@ def test_feed_has_stable_required_episode_fields() -> None:
     )
     assert enclosure.attrib["length"] == "1234"
     assert "secret-token" in root.findtext("./channel/link", default="")
-    assert (
-        root.findtext("./channel/{http://www.itunes.com/dtds/podcast-1.0.dtd}type")
-        == "episodic"
+    assert root.findtext(f"./channel/{{{ITUNES}}}type") == "episodic"
+    assert root.findtext(f"./channel/{{{ITUNES}}}block") == "Yes"
+
+    transcript = item.find(f"{{{PODCAST}}}transcript")
+    assert transcript is not None
+    assert transcript.attrib["type"] == "text/html"
+    assert transcript.attrib["language"] == "en"
+    assert "rel" not in transcript.attrib
+
+
+def test_local_http_feed_links_transcript_without_advertising_namespace_tag() -> None:
+    settings = Settings(
+        _env_file=None,
+        public_base_url="http://127.0.0.1:5000",
+        feed_token="development-feed-token",
     )
+
+    xml = build_feed(_manifest(), settings)
+    root = ElementTree.fromstring(xml)
+    item = root.find("./channel/item")
+
+    assert item is not None
+    assert "Accessible transcript and sources" in item.findtext("description", default="")
+    assert item.find(f"{{{PODCAST}}}transcript") is None
+    assert root.findtext(f"./channel/{{{ITUNES}}}block") == "Yes"
