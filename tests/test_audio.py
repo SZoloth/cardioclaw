@@ -53,18 +53,35 @@ def finding(scope: SourceScope = SourceScope.ABSTRACT_ONLY) -> SummaryFinding:
     )
 
 
-def test_overview_script_announces_episode_count_and_headlines() -> None:
+def test_overview_script_announces_singular_episode_and_headline() -> None:
     script = build_overview_script(
         (finding(),),
         [candidate()],
         briefing_type="weekly",
-        period_label="August 21 through August 28, 2026",
+        period_label="August 22 through August 28, 2026",
     )
 
-    assert "1 paper episodes" in script
+    assert "1 paper episode" in script
+    assert "1 paper episodes" not in script
     assert "1 focused on nuclear cardiology" in script
     assert finding().headline in script
     assert "separate episodes" in script
+
+
+def test_overview_script_uses_plural_episode_count() -> None:
+    second = finding().model_copy(update={"candidate_id": "pmid-456"})
+    second_candidate = candidate().model_copy(
+        update={"candidate_id": "pmid-456", "pmid": "456"}
+    )
+
+    script = build_overview_script(
+        (finding(), second),
+        [candidate(), second_candidate],
+        briefing_type="weekly",
+        period_label="August 22 through August 28, 2026",
+    )
+
+    assert "2 paper episodes" in script
 
 
 @pytest.mark.parametrize(
@@ -92,8 +109,8 @@ def test_content_addressed_names_and_guids_are_stable() -> None:
     assert first == second
     assert first != changed
     assert first.endswith(".mp3")
-    assert episode_guid("2026-08-21_2026-08-28", "pmid-123") == episode_guid(
-        "2026-08-21_2026-08-28", "pmid-123"
+    assert episode_guid("2026-08-22_2026-08-28", "pmid-123") == episode_guid(
+        "2026-08-22_2026-08-28", "pmid-123"
     )
 
 
