@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import json
 import shutil
+import tempfile
 from pathlib import Path
 
 from cardioclaw.config import Settings
@@ -12,7 +13,7 @@ from cardioclaw.util import atomic_write_json, atomic_write_text
 
 
 class ReleasePublisher:
-    """Publish immutable releases, then atomically switch the current pointer."""
+    """Build releases off-feed, promote them atomically, then switch the current pointer."""
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -24,10 +25,22 @@ class ReleasePublisher:
     def begin(self, release_id: str) -> Path:
         destination = self.release_dir(release_id)
         if destination.exists():
-            shutil.rmtree(destination)
-        (destination / "audio").mkdir(parents=True)
-        (destination / "transcripts").mkdir(parents=True)
-        return destination
+            raise FileExistsError(f"Release already exists: {release_id}")
+        staging = Path(
+            tempfile.mkdtemp(
+                prefix=f".staging-{release_id}-",
+                dir=self.settings.releases_dir,
+            )
+        )
+        (staging / "audio").mkdir()
+        (staging / "transcripts").mkdir()
+        return staging
+
+    def discard(self, staging_dir: Path) -> None:
+        """Remove an incomplete build without touching any published release."""
+
+        if self._is_staging_dir(staging_dir):
+            shutil.rmtree(staging_dir, ignore_errors=True)
 
     def write_transcript(
         self,
@@ -50,7 +63,8 @@ class ReleasePublisher:
               <p>{html.escape(candidate.citation_label)}</p>
               <p>Source scope: {html.escape(candidate.source_scope.value.replace("_", " "))}</p>
               <p>{html.escape(" · ".join(identifiers))}</p>
-              <p><a href="{html.escape(candidate.source_url, quote=True)}">Open source record</a></p>
+              <p><a href="{html.escape(candidate.source_url, quote=True)}">
+              Open source record</a></p>
             </section>
             """
 
@@ -88,25 +102,41 @@ class ReleasePublisher:
             document,
         )
 
-    def finalize(self, manifest: ReleaseManifest, release_dir: Path) -> None:
+    def finalize(self, manifest: ReleaseManifest, staging_dir: Path) -> Path:
+        if not self._is_staging_dir(staging_dir):
+            raise ValueError("finalize requires a release staging directory")
+
+        destination = self.release_dir(manifest.release_id)
+        if destination.exists():
+            raise FileExistsError(f"Release already exists: {manifest.release_id}")
+
         history = self._history(
             excluding=manifest.release_id,
             limit=max(0, self.settings.release_retention - 1),
         )
         atomic_write_text(
-            release_dir / "feed.xml",
+            staging_dir / "feed.xml",
             build_feed(manifest, self.settings, history=history),
         )
         atomic_write_json(
-            release_dir / "manifest.json",
+            staging_dir / "manifest.json",
             manifest.model_dump(mode="json"),
         )
-        # The pointer moves only after all audio, transcripts, feed, and manifest exist.
+        self._validate_staged_release(manifest, staging_dir)
+
+        # Rename within the releases directory so clients can never observe a partial release.
+        staging_dir.replace(destination)
+
+        # The pointer moves only after the complete immutable release is in its final location.
         atomic_write_json(
             self.settings.current_pointer,
-            {"release_id": manifest.release_id, "generated_at": manifest.generated_at.isoformat()},
+            {
+                "release_id": manifest.release_id,
+                "generated_at": manifest.generated_at.isoformat(),
+            },
         )
         self._prune(manifest.release_id)
+        return destination
 
     def current_release_id(self) -> str | None:
         try:
@@ -132,7 +162,7 @@ class ReleasePublisher:
             return ()
         manifests: list[ReleaseManifest] = []
         for path in self.settings.releases_dir.iterdir():
-            if not path.is_dir() or path.name == excluding:
+            if not path.is_dir() or path.name == excluding or path.name.startswith("."):
                 continue
             try:
                 manifests.append(
@@ -150,10 +180,43 @@ class ReleasePublisher:
             (
                 path
                 for path in self.settings.releases_dir.iterdir()
-                if path.is_dir() and path.name != current_release_id
+                if path.is_dir()
+                and not path.name.startswith(".")
+                and path.name != current_release_id
             ),
             key=lambda path: path.stat().st_mtime,
             reverse=True,
         )
         for path in releases[self.settings.release_retention - 1 :]:
             shutil.rmtree(path, ignore_errors=True)
+
+    def _is_staging_dir(self, path: Path) -> bool:
+        try:
+            return (
+                path.resolve().parent == self.settings.releases_dir.resolve()
+                and path.name.startswith(".staging-")
+            )
+        except OSError:
+            return False
+
+    @staticmethod
+    def _validate_staged_release(
+        manifest: ReleaseManifest,
+        staging_dir: Path,
+    ) -> None:
+        required = [staging_dir / "feed.xml", staging_dir / "manifest.json"]
+        for episode in manifest.episodes:
+            audio = staging_dir / "audio" / episode.audio_filename
+            transcript = staging_dir / "transcripts" / episode.transcript_filename
+            required.extend((audio, transcript))
+            if audio.is_file() and audio.stat().st_size != episode.audio_size:
+                raise RuntimeError(
+                    f"Audio size mismatch for {episode.audio_filename}: "
+                    f"{audio.stat().st_size} != {episode.audio_size}"
+                )
+
+        missing = [path.relative_to(staging_dir) for path in required if not path.is_file()]
+        if missing:
+            raise RuntimeError(
+                "Release is incomplete: " + ", ".join(str(path) for path in missing)
+            )
