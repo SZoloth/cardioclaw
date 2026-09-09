@@ -1,106 +1,127 @@
-# Cardiology Report — iPhone Setup Guide
-## For the listener's helper
+# Cardiology Report — iPhone setup
 
-This guide sets up a weekly audio podcast on the listener's iPhone.
-Once set up, the listener uses only Siri voice commands — no tapping ever needed.
+## For the listener’s helper
 
----
+Cardiology Report is a private weekly podcast. Once it is configured, the listener should be able to use ordinary Siri and podcast controls without opening a custom application.
 
-## What you are setting up
+Each weekly release contains:
 
-A private weekly podcast called **Cardiology Report** that delivers a
-nuclear cardiology briefing every Monday morning. Each finding is a
-separate short episode the listener can skip through by voice.
+1. A short overview episode with all headlines
+2. One separate episode per paper
 
-The feed address is:
+“Next episode” skips the current paper. Continuous playback proceeds through the papers in order.
+
+## Before you begin
+
+Ask the operator for the private feed URL. It will resemble:
+
+```text
+https://cardio.example.com/feed/LONG_PRIVATE_TOKEN.xml
 ```
-http://157.151.155.75:5000/feed.xml
+
+Treat the full URL as a password. Do not post it, email it broadly, or put it in a public issue.
+
+## Apple Podcasts
+
+1. Open **Podcasts**.
+2. Open **Library**.
+3. Tap the **More** button.
+4. Tap **Follow a Show by URL**.
+5. Paste the private feed URL.
+6. Tap **Follow**.
+7. Open **Cardiology Report** under Library → Shows.
+
+Recommended settings:
+
+- Automatically download new episodes
+- Keep enough played episodes for replay
+- Enable continuous playback
+- Set headphone controls to Next/Previous where available
+
+## Overcast
+
+1. Install and open **Overcast**.
+2. Tap **Add Podcast** or the plus button.
+3. Choose **Add URL**.
+4. Paste the private feed URL.
+5. Add **Cardiology Report**.
+6. Enable Voice Boost if it improves clarity.
+7. Treat Smart Speed as optional; it may compress intentional pauses around numbers.
+
+## Siri commands to test
+
+Apple Podcasts:
+
+```text
+“Siri, play the latest episode of Cardiology Report.”
+“Siri, play the next episode.”
+“Siri, play the previous episode.”
+“Siri, pause.”
+“Siri, continue playing podcast.”
+“Siri, rewind 30 seconds.”
+“Siri, skip ahead two minutes.”
+“Siri, play this at one and a half speed.”
 ```
 
----
+Podcast-app-specific wording may vary. Test the exact phrases on the listener’s phone and record the phrases that work reliably.
 
-## Option A — Apple Podcasts (already on every iPhone)
+## What the listener should hear
 
-### Step 1 — Add the podcast
-1. Open the **Podcasts** app (white icon with purple circles)
-2. Tap **Library** at the bottom of the screen
-3. Tap the **+** button in the top right corner
-4. Tap **Follow a Show by URL**
-5. Type or paste: `http://157.151.155.75:5000/feed.xml`
-6. Tap **Follow** or **Subscribe**
-7. The show called **Cardiology Report** will appear in the Library
+The overview identifies:
 
-### Step 2 — Change settings so episodes stay after playing
-Without this, episodes disappear after they finish and cannot be replayed.
+- Date range
+- Number of paper episodes
+- Number focused on nuclear cardiology
+- A headline for every paper
 
-1. Open the **Settings** app (grey gear icon)
-2. Scroll down and tap **Podcasts**
-3. Set **Keep Episodes** to **All Episodes**
-4. Set **Remove Played Downloads** to **Never** (or turn it Off)
-5. Go back — done
+Each paper episode announces:
 
-### Step 3 — Verify it worked
-Tap **Cardiology Report** in the Library. You should see a list of
-episodes with titles like "Introduction", "Finding 1 of 8", etc.
+- Paper number and total
+- Headline
+- Why it matters
+- Structured summary
+- Limitations
+- Whether the source was full text, abstract only, or an RSS snippet
+- Journal and identifiers when available
+- A reminder that “next episode” moves to the next paper
 
----
+## Offline test
 
-## Option B — Overcast (recommended for better experience)
+1. Download the complete release.
+2. Enable airplane mode.
+3. Start the overview.
+4. Confirm continuous playback.
+5. Confirm next and previous episode.
+6. Confirm pause, resume, and rewind.
 
-Overcast is a free podcast app with clearer audio and better voice control.
+Do not switch the listener away from the existing V4 feed until the V5 feed passes this test for at least two weekly releases.
 
-### Step 1 — Install Overcast
-1. Open the **App Store** (blue icon)
-2. Search for **Overcast**
-3. Download and install it (it is free)
-4. Open Overcast and create a free account or skip
+## Troubleshooting
 
-### Step 2 — Add the podcast
-1. In Overcast, tap the **+** button or magnifying glass
-2. Tap **Add URL**
-3. Type or paste: `http://157.151.155.75:5000/feed.xml`
-4. Tap **Add to Library**
-5. **Cardiology Report** will appear in the podcast list
+### The feed will not follow
 
-### Step 3 — Turn on Voice Boost
-This makes speech louder and clearer — especially helpful for
-medical terminology.
+- Confirm the entire tokenized URL was copied.
+- Confirm it begins with `https://` in production.
+- Open the URL in Safari and verify that XML loads.
+- Ask the operator to check `/healthz`.
 
-1. Tap **Cardiology Report** in the list
-2. Tap the settings icon (top right)
-3. Turn on **Voice Boost**
-4. Turn on **Smart Speed** (removes silent gaps, slightly faster)
+### An episode will not play
 
----
+- Confirm the server supports HEAD and byte-range requests.
+- Refresh the show.
+- Confirm the episode enclosure URL is unique.
+- Confirm the audio file exists in the active immutable release.
 
-## Siri voice commands for the listener
+### “Next episode” does not move to the next paper
 
-Once set up, the listener uses only these voice commands:
+- Confirm the release contains separate paper episodes rather than one combined MP3.
+- Enable continuous playback.
+- Check podcast-app headphone-control settings.
+- Test Apple Podcasts and Overcast separately.
 
-| What to say | What happens |
-|---|---|
-| "Hey Siri, play Cardiology Report" | Starts the intro episode |
-| "Hey Siri, next episode" | Skips to the next finding |
-| "Hey Siri, previous episode" | Goes back one episode |
-| "Hey Siri, pause" | Pauses playback |
-| "Hey Siri, resume" | Resumes where she left off |
-| "Hey Siri, play Cardiology Report in Overcast" | Opens in Overcast specifically |
+### New episodes do not appear
 
-The intro episode announces how many findings there are that week.
-Each finding announces its position ("Finding 3 of 8") so the
-listener always knows where she is.
-
----
-
-## What to expect each Monday
-
-New episodes are generated automatically every Monday morning.
-The listener's podcast app refreshes on its own — she does not need
-to do anything. Saying "Hey Siri, play Cardiology Report" on Monday
-will play the new week's briefing.
-
----
-
-## If something is not working
-
-Contact Steve Zoloth at zoloth1@verizon.net
+- Pull down to refresh the show.
+- Confirm the weekly generation succeeded.
+- Confirm the feed’s current release pointer changed.
+- Confirm GUIDs did not collide with a prior week.

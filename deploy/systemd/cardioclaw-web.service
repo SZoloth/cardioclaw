@@ -1,0 +1,22 @@
+[Unit]
+Description=Cardiology Claw private podcast server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cardioclaw
+Group=cardioclaw
+WorkingDirectory=/opt/cardioclaw
+EnvironmentFile=/etc/cardioclaw.env
+ExecStart=/opt/cardioclaw/.venv/bin/gunicorn --workers 2 --bind 127.0.0.1:5000 --access-logfile /dev/null serve:app
+Restart=on-failure
+RestartSec=5
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/cardioclaw
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+[Unit]
+Description=Generate weekly Cardiology Claw podcast release
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cardioclaw
+Group=cardioclaw
+WorkingDirectory=/opt/cardioclaw
+EnvironmentFile=/etc/cardioclaw.env
+ExecStart=/opt/cardioclaw/.venv/bin/cardioclaw generate --type weekly
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/cardioclaw
+NoNewPrivileges=true

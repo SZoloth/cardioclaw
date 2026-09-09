@@ -1,17 +1,21 @@
-# API keys — never commit
 .env
-
-# Generated audio and episode data
-output/
-output_prev/*.mp3
-tmp_segments/
-
-# Python
+.venv/
 __pycache__/
-*.py.save
-*.pyc
-*.pyo
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+data/
+output/
+output_prev/
+*.mp3
 *.log
 
-# macOS
 .DS_Store
+.idea/
+.vscode/
